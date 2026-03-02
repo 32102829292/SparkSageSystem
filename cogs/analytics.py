@@ -1,4 +1,4 @@
-"""cogs/analytics.py — /stats command + usage tracking"""
+"""cogs/analytics.py — /analytics command + usage tracking"""
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -41,7 +41,7 @@ class Analytics(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="stats", description="View SparkSage usage statistics")
+    @app_commands.command(name="analytics", description="View SparkSage usage statistics")
     @app_commands.describe(period="Time period")
     @app_commands.choices(period=[
         app_commands.Choice(name="Today", value="today"),

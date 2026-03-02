@@ -150,36 +150,7 @@ class RateMonitor(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @app_commands.command(name="ratestatus", description="Check your rate limit status")
-    async def slash_ratestatus(self, interaction: discord.Interaction):
-        """Slash command version of rate check"""
-        guild_id = str(interaction.guild_id) if interaction.guild_id else "dm"
-        user_id = str(interaction.user.id)
-        
-        usage = get_user_usage(guild_id, user_id)
-        
-        percentage = (usage['used'] / usage['limit']) * 100
-        if percentage >= 90:
-            color = discord.Color.red()
-            status = "🔴 Critical"
-        elif percentage >= 70:
-            color = discord.Color.orange()
-            status = "🟡 Warning"
-        else:
-            color = discord.Color.green()
-            status = "🟢 Healthy"
-        
-        embed = discord.Embed(
-            title="⏱️ Your Rate Limit Status",
-            color=color
-        )
-        embed.add_field(name="Status", value=status, inline=False)
-        embed.add_field(name="Used", value=f"{usage['used']} requests", inline=True)
-        embed.add_field(name="Remaining", value=f"{usage['remaining']}", inline=True)
-        embed.add_field(name="Limit", value=f"{usage['limit']}/minute", inline=True)
-        embed.add_field(name="Resets in", value=f"{usage['reset_in']} seconds", inline=True)
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+    # REMOVED: The duplicate slash command at lines 128-167
 
 
 # ===== Setup Function =====

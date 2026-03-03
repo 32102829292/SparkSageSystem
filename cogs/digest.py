@@ -2,29 +2,10 @@
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-import aiosqlite
+import db  # Swapped aiosqlite for your new db.py
 import os
 import providers
-from datetime import datetime, timedelta
-
-DB_PATH = os.getenv("DATABASE_PATH", "sparksage.db")
-
-
-async def get_setting(key):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT value FROM config WHERE key=?", (key,)) as cur:
-            row = await cur.fetchone()
-            return row["value"] if row else None
-
-
-async def set_setting(key, value):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (key, value)
-        )
-        await db.commit()
-
+from datetime import datetime, timedelta, timezone
 
 class Digest(commands.Cog):
     def __init__(self, bot):
@@ -36,11 +17,12 @@ class Digest(commands.Cog):
 
     @tasks.loop(hours=24)
     async def daily_digest(self):
-        enabled = await get_setting("digest_enabled")
+        # Using your new db functions instead of local get_setting
+        enabled = await db.get_config("digest_enabled")
         if enabled != "true":
             return
 
-        channel_id = await get_setting("digest_channel_id")
+        channel_id = await db.get_config("digest_channel_id")
         if not channel_id:
             return
 
@@ -48,23 +30,26 @@ class Digest(commands.Cog):
         if not channel:
             return
 
-        # Get messages from past 24h from conversations table
-        cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(
-                "SELECT role, content FROM conversations WHERE created_at >= ? ORDER BY created_at",
-                (cutoff,)
-            ) as cur:
-                rows = await cur.fetchall()
+        # Fetch messages from Supabase (PostgreSQL logic)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        
+        # We access the pool directly for this specific time-based query
+        pool = await db.get_db()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT role, content FROM conversations WHERE created_at >= $1 ORDER BY created_at ASC",
+                cutoff
+            )
 
         if not rows:
             await channel.send("📰 No activity in the past 24 hours to summarize.")
             return
 
+        # PostgreSQL records are accessed like dicts or by name
         conversation = "\n".join(
             f"{r['role'].upper()}: {r['content'][:200]}" for r in rows[:50]
         )
+        
         system = (
             "You are a helpful summarizer. Create a concise daily digest of AI assistant "
             "conversations. Use bullet points. Highlight key topics discussed."
@@ -79,10 +64,10 @@ class Digest(commands.Cog):
             summary = f"Could not generate digest: {e}"
 
         embed = discord.Embed(
-            title=f"📰 Daily Digest — {datetime.utcnow().strftime('%B %d, %Y')}",
+            title=f"📰 Daily Digest — {datetime.now(timezone.utc).strftime('%B %d, %Y')}",
             description=summary[:4000],
             color=discord.Color.gold(),
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
         embed.set_footer(text="SparkSage Daily Digest")
         await channel.send(embed=embed)
@@ -97,8 +82,8 @@ class Digest(commands.Cog):
     @app_commands.describe(channel="Channel to post daily digest")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def digest_setup(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        await set_setting("digest_channel_id", str(channel.id))
-        await set_setting("digest_enabled", "true")
+        await db.set_config("digest_channel_id", str(channel.id))
+        await db.set_config("digest_enabled", "true")
         await interaction.response.send_message(
             f"✅ Daily digest will be posted to {channel.mention} every 24 hours.",
             ephemeral=True,
@@ -114,20 +99,21 @@ class Digest(commands.Cog):
     @digest_group.command(name="disable", description="[Admin] Disable daily digest")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def digest_disable(self, interaction: discord.Interaction):
-        await set_setting("digest_enabled", "false")
+        await db.set_config("digest_enabled", "false")
         await interaction.response.send_message("✅ Daily digest disabled.", ephemeral=True)
 
     @digest_group.command(name="status", description="Check digest configuration")
     async def digest_status(self, interaction: discord.Interaction):
-        enabled = await get_setting("digest_enabled")
-        channel_id = await get_setting("digest_channel_id")
+        enabled = await db.get_config("digest_enabled")
+        channel_id = await db.get_config("digest_channel_id")
+        
         channel = self.bot.get_channel(int(channel_id)) if channel_id else None
         status = "✅ Enabled" if enabled == "true" else "❌ Disabled"
         ch = channel.mention if channel else "Not set"
+        
         await interaction.response.send_message(
             f"**Digest Status:** {status}\n**Channel:** {ch}", ephemeral=True
         )
-
 
 async def setup(bot):
     await bot.add_cog(Digest(bot))

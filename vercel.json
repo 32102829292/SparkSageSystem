@@ -1,6 +1,14 @@
 {
   "version": 2,
+  "functions": {
+    "api/main.py": {
+      "runtime": "python@3.13",
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "api/main.py" }
+    { "source": "/api/(.*)", "destination": "api/main.py" },
+    { "source": "/(.*)", "destination": "api/main.py" }
   ]
 }

@@ -1,19 +1,24 @@
-from fastapi import Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
-import config
-from api import auth_utils  # your jwt file
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login", auto_error=False)
+security = HTTPBearer(auto_error=False)
 
-async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)):
-    if not token:
-        if not config.WIZARD_COMPLETED:
-            return {"username": "admin_setup"}
-        raise HTTPException(status_code=401, detail="Not authenticated")
+async def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Validates the token and returns the current user."""
+    if not credentials or not credentials.credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    return {"token": credentials.credentials}
 
-    payload = auth_utils.decode_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-    return {"username": payload.get("sub")}
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Returns the current user if authenticated, otherwise None."""
+    if credentials is None:
+        return None
+    try:
+        return await get_current_user(credentials)
+    except HTTPException:
+        return None

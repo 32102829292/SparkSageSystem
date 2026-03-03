@@ -1,0 +1,7 @@
+{
+  "name": "Example Plugin",
+  "version": "1.0.0",
+  "author": "Developer",
+  "description": "A simple example plugin",
+  "cog": "example.py"
+}

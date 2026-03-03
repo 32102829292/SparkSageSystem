@@ -1,0 +1,7 @@
+{
+  "name": "Test Plugin",
+  "version": "1.0.0",
+  "author": "Debug",
+  "description": "Test plugin",
+  "cog": "test.py"
+}

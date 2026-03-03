@@ -1,0 +1,7 @@
+{
+  "name": "Trivia Game",
+  "version": "1.0.0",
+  "author": "Community",
+  "description": "Trivia game with questions",
+  "cog": "trivia.py"
+}

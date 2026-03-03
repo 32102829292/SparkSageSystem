@@ -1,4 +1,13 @@
 {
   "version": 2,
-  "framework": "nextjs"
+  "functions": {
+    "api/main.py": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "api/main.py" },
+    { "source": "/(.*)", "destination": "api/main.py" }
+  ]
 }

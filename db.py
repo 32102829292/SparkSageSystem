@@ -99,3 +99,65 @@ async def sync_env_to_db():
         print("✅ AI provider sync complete.")
     except Exception as e:
         print(f"⚠️ Sync failed: {e}")
+        
+async def init_db():
+    """Starts the database pool and creates tables if they don't exist"""
+    try:
+        pool = await get_db()
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS config (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id SERIAL PRIMARY KEY,
+                    channel_id TEXT,
+                    role TEXT,
+                    content TEXT,
+                    provider TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token TEXT PRIMARY KEY,
+                    user_id TEXT,
+                    expires_at TIMESTAMP WITH TIME ZONE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        print("✅ Database connection pool initialized and tables verified.")
+        return pool
+    except Exception as e:
+        print(f"❌ Database failed to start: {e}")
+        raise e
+
+
+async def create_session(token: str, user_id: str, expires_at):
+    pool = await get_db()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO sessions (token, user_id, expires_at)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (token) DO UPDATE SET expires_at = EXCLUDED.expires_at""",
+            token, user_id, expires_at
+        )
+
+
+async def get_session(token: str) -> dict | None:
+    pool = await get_db()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM sessions WHERE token = $1 AND expires_at > NOW()",
+            token
+        )
+        return dict(row) if row else None
+
+
+async def delete_session(token: str):
+    pool = await get_db()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM sessions WHERE token = $1", token)

@@ -137,6 +137,9 @@ async def init_db():
 
 
 async def create_session(token: str, user_id: str, expires_at):
+    from datetime import datetime
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
     pool = await get_db()
     async with pool.acquire() as conn:
         await conn.execute(

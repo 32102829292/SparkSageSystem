@@ -1,16 +1,16 @@
 from fastapi import APIRouter, Depends
-from api.deps import get_current_user
+from api.deps import get_current_user, get_optional_user
 from bot import get_bot
 import discord
 import logging
 
 logger = logging.getLogger('sparksage')
-router = APIRouter()  # No prefix here, it's added in main.py
+router = APIRouter()
 
 
 @router.get("/status")
-async def bot_status(user=Depends(get_current_user)):
-    """Get bot status"""
+async def bot_status(user=Depends(get_optional_user)):
+    """Get bot status - public endpoint"""
     from bot import get_bot_status
     return get_bot_status()
 
@@ -59,7 +59,6 @@ async def get_guild_channels(guild_id: str, user=Depends(get_current_user)):
         
         channels = []
         for channel in guild.channels:
-            # Include text channels only (type 0)
             if channel.type == discord.ChannelType.text:
                 channels.append({
                     "id": str(channel.id),

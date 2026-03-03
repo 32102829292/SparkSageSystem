@@ -16,10 +16,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    headers,
-    ...rest,
-  });
+  const res = await fetch(`${API_URL}${path}`, { headers, ...rest });
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
@@ -29,7 +26,6 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   return res.json();
 }
 
-// Response types matching backend
 export interface ProviderItem {
   name: string;
   display_name: string;
@@ -57,11 +53,13 @@ export interface MessageItem {
   created_at: string;
 }
 
+// Matches bot.py get_bot_status() exactly
 export interface BotStatus {
   online: boolean;
-  latency: number | null;
-  guilds: number;
-  uptime: number | null;
+  username: string | null;
+  latency_ms: number | null;
+  guild_count: number;
+  guilds: { id: string; name: string; member_count: number }[];
 }
 
 export interface TestProviderResult {
@@ -71,69 +69,50 @@ export interface TestProviderResult {
 }
 
 export const api = {
-  // Auth
   login: (password: string) =>
     apiFetch<{ access_token: string; token_type: string }>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ password }),
     }),
-
   me: (token: string) =>
     apiFetch<{ username: string; role: string }>("/api/auth/me", { token }),
-
-  // Config
   getConfig: (token: string) =>
-    apiFetch<{ config: Record<string, string> }>("/api/config", { token }),
-
+    apiFetch<{ config: Record<string, string> }>("/api/config/", { token }),
   updateConfig: (token: string, values: Record<string, string>) =>
-    apiFetch<{ status: string }>("/api/config", {
+    apiFetch<{ status: string }>("/api/config/", {
       method: "PUT",
       body: JSON.stringify({ values }),
       token,
     }),
-
-  // Providers
   getProviders: (token: string) =>
-    apiFetch<ProvidersResponse>("/api/providers", { token }),
-
+    apiFetch<ProvidersResponse>("/api/providers/", { token }),
   testProvider: (token: string, provider: string) =>
     apiFetch<TestProviderResult>("/api/providers/test", {
       method: "POST",
       body: JSON.stringify({ provider }),
       token,
     }),
-
   setPrimaryProvider: (token: string, provider: string) =>
     apiFetch<{ status: string; primary: string }>("/api/providers/primary", {
       method: "PUT",
       body: JSON.stringify({ provider }),
       token,
     }),
-
-  // Bot
   getBotStatus: (token: string) =>
     apiFetch<BotStatus>("/api/bot/status", { token }),
-
-  // Conversations
   getConversations: (token: string) =>
-    apiFetch<{ channels: ChannelItem[] }>("/api/conversations", { token }),
-
+    apiFetch<{ channels: ChannelItem[] }>("/api/conversations/", { token }),
   getConversation: (token: string, channelId: string) =>
     apiFetch<{ channel_id: string; messages: MessageItem[] }>(
-      `/api/conversations/${channelId}`,
-      { token }
+      `/api/conversations/${channelId}`, { token }
     ),
-
   deleteConversation: (token: string, channelId: string) =>
     apiFetch<{ status: string }>(`/api/conversations/${channelId}`, {
       method: "DELETE",
       token,
     }),
-
-  // Wizard
   getWizardStatus: (token: string) =>
     apiFetch<{ completed: boolean; current_step: number }>("/api/wizard/status", { token }),
-
   completeWizard: (token: string, data: Record<string, string>) =>
     apiFetch<{ status: string }>("/api/wizard/complete", {
       method: "POST",

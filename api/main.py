@@ -1,19 +1,19 @@
+import os
+import asyncio
+import logging
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-import os
-import logging
-from typing import Dict
-import time
 
-# Configure logging
+# --- 1. Logging Setup ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Lazy imports for faster cold starts
+# --- 2. Lazy Router Loading ---
 def get_routers():
+    # Import inside the function to keep Vercel cold starts fast
     from api.routes import (
         auth, config, providers, bot, conversations, wizard,
         analytics, faqs, permissions, plugins, custom_commands,
@@ -38,93 +38,89 @@ def get_routers():
         (rate_limits.router, "/api/rate-limits", "rate-limits"),
     ]
 
-# Connection pool for database
-_db_pool = None
-
-async def get_db_pool():
-    global _db_pool
-    if _db_pool is None:
-        import db
-        _db_pool = await db.create_pool()  # Assuming you can create a pool
-    return _db_pool
-
+# --- 3. Lifespan (DB Connection) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: initialize connection pool
     logger.info("Starting up SparkSage API")
-    start_time = time.time()
-    
     import db
-    # Use connection pooling if your DB supports it
     if hasattr(db, 'create_pool'):
         app.state.db_pool = await db.create_pool()
     else:
         await db.init_db()
         await db.sync_env_to_db()
     
-    logger.info(f"Startup completed in {time.time() - start_time:.2f}s")
     yield
     
-    # Shutdown: close connections
     logger.info("Shutting down SparkSage API")
     if hasattr(app.state, 'db_pool'):
         await app.state.db_pool.close()
     else:
         await db.close_db()
 
+# --- 4. App Factory ---
 def create_app() -> FastAPI:
     app = FastAPI(
         title="SparkSage API",
         version="1.0.0",
         lifespan=lifespan,
-        docs_url=None if os.getenv("VERCEL_ENV") == "production" else "/docs",
-        redoc_url=None if os.getenv("VERCEL_ENV") == "production" else "/redoc"
+        docs_url=None if os.getenv("VERCEL_ENV") == "production" else "/docs"
     )
 
-    # CORS for production
+    # CORS
     origins = [
         "http://localhost:3000",
-        "http://127.0.0.1:3000",
         "https://sparksage.vercel.app",
         os.getenv("FRONTEND_URL", "")
     ]
-    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[origin for origin in origins if origin],
+        allow_origins=[o for o in origins if o],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # Mount static files if they exist
     if os.path.exists("static"):
         app.mount("/static", StaticFiles(directory="static"), name="static")
 
-    # Lazy load routers
-    routers = get_routers()
-    for router, prefix, tag in routers:
+    # Register Routers
+    for router, prefix, tag in get_routers():
         app.include_router(router, prefix=prefix, tags=[tag])
 
     @app.get("/api/health")
     async def health():
-        return {
-            "status": "ok",
-            "environment": os.getenv("VERCEL_ENV", "development"),
-            "timestamp": time.time()
-        }
-
-    @app.middleware("http")
-    async def add_process_time_header(request, call_next):
-        start_time = time.time()
-        response = await call_next(request)
-        process_time = time.time() - start_time
-        response.headers["X-Process-Time"] = str(process_time)
-        return response
+        return {"status": "ok", "python": "3.13", "time": time.time()}
 
     return app
 
 app = create_app()
 
-# For Vercel serverless
-handler = app
+# --- 5. Local Execution (Bot + API) ---
+# This block is ignored by Vercel, but runs when you do 'python api/main.py'
+if __name__ == "__main__":
+    import uvicorn
+    # Make sure you have a file named bot_instance.py that exports 'bot'
+    try:
+        from api.bot_instance import bot_client 
+    except ImportError:
+        logger.warning("Bot instance not found. Starting API only.")
+        bot_client = None
+
+    async def run_combined():
+        if bot_client:
+            token = os.getenv("DISCORD_TOKEN")
+            if token:
+                logger.info("Starting Discord Bot...")
+                asyncio.create_task(bot_client.start(token))
+            else:
+                logger.error("DISCORD_TOKEN missing in .env")
+
+        logger.info("Starting FastAPI Server...")
+        config = uvicorn.Config(app, host="0.0.0.0", port=8000)
+        server = uvicorn.Server(config)
+        await server.serve()
+
+    try:
+        asyncio.run(run_combined())
+    except KeyboardInterrupt:
+        pass

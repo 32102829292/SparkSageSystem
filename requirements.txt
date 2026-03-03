@@ -1,10 +1,17 @@
-discord.py>=2.3.0
-openai>=1.50.0
-python-dotenv>=1.0.0
-aiohttp>=3.9.0
+# Web Framework
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
+
+# Asynchronous HTTP & APIs
+httpx>=0.27.0
+aiohttp>=3.9.0
+openai>=1.50.0
+
+# Database & Auth
 aiosqlite>=0.20.0
 pyjwt>=2.9.0
 python-multipart>=0.0.12
-httpx>=0.27.0
+python-dotenv>=1.0.0
+
+# Bot (Note: Vercel is best for the API side of this)
+discord.py>=2.3.0

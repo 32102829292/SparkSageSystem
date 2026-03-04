@@ -19,8 +19,7 @@ interface ChannelListProps {
 
 function formatDate(dateStr: string | null | undefined) {
   if (!dateStr) return "No activity";
-  const normalized = dateStr.replace(" ", "T");
-  const date = new Date(normalized.endsWith("Z") ? normalized : normalized + "Z");
+  const date = new Date(dateStr); // ✅ already a valid ISO string with timezone
   if (isNaN(date.getTime())) return "Unknown";
   return date.toLocaleString();
 }

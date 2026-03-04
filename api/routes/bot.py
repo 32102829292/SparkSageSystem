@@ -1,73 +1,58 @@
 from fastapi import APIRouter, Depends
 from api.deps import get_current_user, get_optional_user
-from bot import get_bot
-import discord
+import json
+import time
 import logging
 
 logger = logging.getLogger('sparksage')
 router = APIRouter()
 
+STATUS_FILE = "/tmp/bot_status.json"
+STALE_THRESHOLD = 30  # seconds
+
+
+def _read_status() -> dict:
+    """Read bot status written by the bot process."""
+    try:
+        with open(STATUS_FILE) as f:
+            data = json.load(f)
+        if time.time() - data.get("timestamp", 0) > STALE_THRESHOLD:
+            data["online"] = False
+            data["stale"] = True
+        return data
+    except FileNotFoundError:
+        return {"online": False, "username": None, "latency_ms": None, "guild_count": 0, "guilds": []}
+    except Exception as e:
+        logger.error(f"Error reading bot status file: {e}")
+        return {"online": False, "username": None, "latency_ms": None, "guild_count": 0, "guilds": []}
+
 
 @router.get("/status")
 async def bot_status(user=Depends(get_optional_user)):
-    """Get bot status - public endpoint"""
-    from bot import get_bot_status
-    return get_bot_status()
+    """Get bot status - public endpoint."""
+    return _read_status()
 
 
 @router.get("/guilds")
 async def get_guilds(user=Depends(get_current_user)):
-    """Get all guilds the bot is connected to"""
-    try:
-        bot = get_bot()
-        if not bot:
-            logger.error("Bot instance not available")
-            return {"guilds": []}
-        
-        if not bot.is_ready():
-            logger.warning("Bot is not ready yet")
-            return {"guilds": []}
-        
-        guilds = []
-        for guild in bot.guilds:
-            guilds.append({
-                "id": str(guild.id),
-                "name": guild.name,
-                "member_count": guild.member_count,
-                "icon_url": str(guild.icon.url) if guild.icon else None
-            })
-        
-        logger.info(f"Found {len(guilds)} guilds")
-        return {"guilds": guilds}
-    except Exception as e:
-        logger.error(f"Error fetching guilds: {e}")
-        return {"guilds": []}
+    """Get all guilds the bot is connected to."""
+    status = _read_status()
+    return {"guilds": status.get("guilds", [])}
 
 
 @router.get("/guilds/{guild_id}/channels")
 async def get_guild_channels(guild_id: str, user=Depends(get_current_user)):
-    """Get all text channels in a specific guild"""
-    try:
-        bot = get_bot()
-        if not bot or not bot.is_ready():
-            return []
-        
-        guild = bot.get_guild(int(guild_id))
-        if not guild:
-            logger.warning(f"Guild {guild_id} not found")
-            return []
-        
-        channels = []
-        for channel in guild.channels:
-            if channel.type == discord.ChannelType.text:
-                channels.append({
-                    "id": str(channel.id),
-                    "name": channel.name,
-                    "type": channel.type.value
-                })
-        
-        logger.info(f"Found {len(channels)} text channels in guild {guild.name}")
-        return channels
-    except Exception as e:
-        logger.error(f"Error fetching channels for guild {guild_id}: {e}")
+    """
+    Get channels for a guild.
+    Since the API and bot are separate processes, we return channels
+    cached in the status file. For full channel data, the bot process
+    would need to write channel info to the status file or a DB table.
+    """
+    status = _read_status()
+    guilds = status.get("guilds", [])
+    guild = next((g for g in guilds if g["id"] == guild_id), None)
+    if not guild:
         return []
+    # Channel data requires the bot process — return empty with a hint
+    # to add channel caching to _write_status_loop in bot.py if needed
+    return guild.get("channels", [])

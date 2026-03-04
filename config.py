@@ -13,17 +13,17 @@ AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").lower()
 
 # Free providers
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-r1:free")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
 
 # Paid providers (optional)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -119,9 +119,9 @@ def reload_from_db(db_config: dict[str, str]):
         "BOT_PREFIX": str,
         "MAX_TOKENS": int,
         "SYSTEM_PROMPT": str,
-        "RATE_LIMIT_USER": int,      # Added
-        "RATE_LIMIT_GUILD": int,     # Added
-        "RATE_LIMIT_WINDOW": int,    # Added
+        "RATE_LIMIT_USER": int,
+        "RATE_LIMIT_GUILD": int,
+        "RATE_LIMIT_WINDOW": int,
         "ADMIN_PASSWORD": str,
         "DISCORD_CLIENT_ID": str,
         "DISCORD_CLIENT_SECRET": str,

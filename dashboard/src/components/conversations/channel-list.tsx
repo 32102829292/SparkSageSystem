@@ -1,9 +1,8 @@
 "use client";
-
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
-import type { ChannelItem } from "@/lib/api";
-import { Button } from "@/components/ui/button";
+import type { ChannelItem } from "../../lib/api";
+import { Button } from "../ui/button";
 import {
   Table,
   TableBody,
@@ -11,15 +10,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "../ui/table";
 
 interface ChannelListProps {
   channels: ChannelItem[];
   onDelete: (channelId: string) => void;
 }
 
-function formatDate(dateStr: string) {
-  const date = new Date(dateStr + "Z");
+function formatDate(dateStr: string | null | undefined) {
+  if (!dateStr) return "No activity";
+  const normalized = dateStr.replace(" ", "T");
+  const date = new Date(normalized.endsWith("Z") ? normalized : normalized + "Z");
+  if (isNaN(date.getTime())) return "Unknown";
   return date.toLocaleString();
 }
 
@@ -31,7 +33,6 @@ export function ChannelList({ channels, onDelete }: ChannelListProps) {
       </p>
     );
   }
-
   return (
     <Table>
       <TableHeader>
@@ -55,7 +56,7 @@ export function ChannelList({ channels, onDelete }: ChannelListProps) {
             </TableCell>
             <TableCell className="text-right">{ch.message_count}</TableCell>
             <TableCell className="text-sm text-muted-foreground">
-              {formatDate(ch.last_active)}
+              {formatDate(ch.last_activity)}
             </TableCell>
             <TableCell>
               <Button

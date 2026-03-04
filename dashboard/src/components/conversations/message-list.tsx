@@ -1,14 +1,17 @@
 "use client";
 
-import type { MessageItem } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
+import type { MessageItem } from "../../lib/api";
+import { Badge } from "../ui/badge";
 
 interface MessageListProps {
   messages: MessageItem[];
 }
 
-function formatTime(dateStr: string) {
-  const date = new Date(dateStr + "Z");
+function formatTime(dateStr: string | null | undefined) {
+  if (!dateStr) return "";
+  const normalized = dateStr.replace(" ", "T");
+  const date = new Date(normalized.endsWith("Z") ? normalized : normalized + "Z");
+  if (isNaN(date.getTime())) return "";
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -27,7 +30,7 @@ export function MessageList({ messages }: MessageListProps) {
         const isUser = msg.role === "user";
         return (
           <div
-            key={i}
+            key={msg.id ?? i}
             className={`flex ${isUser ? "justify-end" : "justify-start"}`}
           >
             <div

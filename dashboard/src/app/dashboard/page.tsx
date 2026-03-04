@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { Activity, Cpu, Wifi, WifiOff, Server, ArrowRight, RefreshCw } from "lucide-react";
-import { api } from "@/lib/api";
-import type { ProviderItem, ProvidersResponse } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { api } from "../../lib/api";
+import type { ProviderItem, ProvidersResponse } from "../../lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { Badge } from "../../components/ui/badge";
 
 const REFRESH_INTERVAL = 10000; // 10 seconds
 

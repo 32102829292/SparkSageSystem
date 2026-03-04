@@ -6,7 +6,6 @@ import config
 
 
 def _create_client(provider_name: str) -> OpenAI | None:
-    """Create an OpenAI-compatible client for the given provider."""
     provider = config.PROVIDERS.get(provider_name)
     if not provider or not provider["api_key"]:
         return None
@@ -23,7 +22,6 @@ def _create_client(provider_name: str) -> OpenAI | None:
 
 
 def _build_fallback_order() -> list[str]:
-    """Build the provider fallback order: primary first, then free providers."""
     primary = config.AI_PROVIDER
     order = [primary]
     for name in config.FREE_FALLBACK_CHAIN:
@@ -33,7 +31,6 @@ def _build_fallback_order() -> list[str]:
 
 
 def _build_clients() -> dict[str, OpenAI]:
-    """Build clients for all configured providers."""
     clients = {}
     for name in set([config.AI_PROVIDER] + config.FREE_FALLBACK_CHAIN + list(config.PROVIDERS.keys())):
         client = _create_client(name)
@@ -42,56 +39,61 @@ def _build_clients() -> dict[str, OpenAI]:
     return clients
 
 
-# Pre-build clients for all configured providers
 _clients: dict[str, OpenAI] = _build_clients()
 FALLBACK_ORDER = _build_fallback_order()
 
 
 def reload_clients():
-    """Rebuild all clients and fallback order from current config."""
     global _clients, FALLBACK_ORDER
     _clients = _build_clients()
     FALLBACK_ORDER = _build_fallback_order()
 
 
 def get_available_providers() -> list[str]:
-    """Return list of provider names that have valid API keys configured."""
     return [name for name in FALLBACK_ORDER if name in _clients]
 
 
 def test_provider(name: str) -> dict:
-    """Test a provider with a minimal API call. Returns {success, latency_ms, error}."""
     provider = config.PROVIDERS.get(name)
     if not provider:
         return {"success": False, "latency_ms": 0, "error": f"Unknown provider: {name}"}
 
-    client = _clients.get(name)
+    client = _clients.get(name) or _create_client(name)
     if not client:
-        # Try creating a fresh client in case config was just updated
-        client = _create_client(name)
-        if not client:
-            return {"success": False, "latency_ms": 0, "error": "No API key configured"}
+        return {"success": False, "latency_ms": 0, "error": "No API key configured"}
 
+    start = time.time()
     try:
-        start = time.time()
-        response = client.chat.completions.create(
+        client.chat.completions.create(
             model=provider["model"],
             max_tokens=10,
             messages=[{"role": "user", "content": "Hi"}],
         )
-        latency = int((time.time() - start) * 1000)
-        return {"success": True, "latency_ms": latency, "error": None}
+        return {"success": True, "latency_ms": int((time.time() - start) * 1000), "error": None}
     except Exception as e:
-        latency = int((time.time() - start) * 1000)
-        return {"success": False, "latency_ms": latency, "error": str(e)}
+        return {"success": False, "latency_ms": int((time.time() - start) * 1000), "error": str(e)}
+
+
+def call_provider(provider_name: str, messages: list[dict], system_prompt: str) -> tuple[str, str]:
+    """Call a specific provider directly, without fallback. Raises on failure."""
+    client = _clients.get(provider_name)
+    if not client:
+        raise RuntimeError(f"Provider '{provider_name}' not configured or unavailable")
+
+    provider = config.PROVIDERS[provider_name]
+    response = client.chat.completions.create(
+        model=provider["model"],
+        max_tokens=config.MAX_TOKENS,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            *messages,
+        ],
+    )
+    return response.choices[0].message.content, provider_name
 
 
 def chat(messages: list[dict], system_prompt: str) -> tuple[str, str]:
-    """Send messages to AI and return (response_text, provider_name).
-
-    Tries the primary provider first, then falls back through free providers.
-    Raises RuntimeError if all providers fail.
-    """
+    """Send messages to AI with fallback chain. Returns (response_text, provider_name)."""
     errors = []
 
     for provider_name in FALLBACK_ORDER:
@@ -109,12 +111,9 @@ def chat(messages: list[dict], system_prompt: str) -> tuple[str, str]:
                     *messages,
                 ],
             )
-            text = response.choices[0].message.content
-            return text, provider_name
-
+            return response.choices[0].message.content, provider_name
         except Exception as e:
             errors.append(f"{provider['name']}: {e}")
             continue
 
-    error_details = "\n".join(errors)
-    raise RuntimeError(f"All providers failed:\n{error_details}")
+    raise RuntimeError(f"All providers failed:\n" + "\n".join(errors))

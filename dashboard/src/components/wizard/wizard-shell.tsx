@@ -1,8 +1,8 @@
 "use client";
 
-import { useWizardStore } from "@/stores/wizard-store";
-import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
+import { useWizardStore } from "../../stores/wizard-store";
+import { Progress } from "../ui/progress";
+import { Button } from "../ui/button";
 import { StepDiscord } from "./step-discord";
 import { StepProviders } from "./step-providers";
 import { StepSettings } from "./step-settings";

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from api.deps import get_current_user
@@ -8,48 +6,44 @@ import db
 router = APIRouter()
 
 
-@router.get("/status")
-async def wizard_status():
-    """Public endpoint - no auth required for first-run detection."""
-    state = await db.get_wizard_state()
-    return state
-
-
-class WizardStepUpdate(BaseModel):
+class WizardStepBody(BaseModel):
     step: int
-    data: dict
+    data: dict = {}
+
+
+class WizardCompleteBody(BaseModel):
+    config: dict
+
+
+@router.get("/status")
+async def get_wizard_status(user=Depends(get_current_user)):
+    state = await db.get_wizard_state()
+    return {
+        "completed": state["completed"],
+        "current_step": state["current_step"],
+        "data": state["data"],
+    }
 
 
 @router.put("/step")
-async def update_wizard_step(body: WizardStepUpdate, user: dict = Depends(get_current_user)):
-    state = await db.get_wizard_state()
-    current_data = state["data"]
-    current_data[str(body.step)] = body.data
-    await db.set_wizard_state(current_step=body.step, data=current_data)
+async def update_wizard_step(body: WizardStepBody, user=Depends(get_current_user)):
+    await db.set_wizard_state(current_step=body.step, data=body.data)
     return {"status": "ok"}
-
-
-class WizardCompleteRequest(BaseModel):
-    config: dict[str, str]
 
 
 @router.post("/complete")
-async def complete_wizard(body: WizardCompleteRequest, user: dict = Depends(get_current_user)):
-    # Save all config values to DB
+async def complete_wizard(body: WizardCompleteBody, user=Depends(get_current_user)):
     await db.set_config_bulk(body.config)
-
-    # Mark wizard as completed
     await db.set_wizard_state(completed=True)
+    return {
+        "status": "ok",
+        "message": "Wizard complete",
+        "config_count": len(body.config),
+        "providers_configured": list(body.config.keys()),
+    }
 
-    # Sync to .env file
-    await db.sync_db_to_env()
 
-    # Reload config and providers
-    import config as cfg
-    all_config = await db.get_all_config()
-    cfg.reload_from_db(all_config)
-
-    import providers
-    providers.reload_clients()
-
-    return {"status": "ok"}
+@router.post("/reset")
+async def reset_wizard(user=Depends(get_current_user)):
+    await db.set_wizard_state(completed=False, current_step=1, data={})
+    return {"status": "ok", "message": "Wizard reset"}

@@ -35,8 +35,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
+} from "../ui/sidebar";
+import { Button } from "../ui/button";
 
 const NAV_ITEMS = [
   { title: "Overview",      href: "/dashboard",               icon: LayoutDashboard },

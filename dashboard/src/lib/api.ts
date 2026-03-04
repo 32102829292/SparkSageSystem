@@ -22,8 +22,8 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(body.detail || `API error: ${res.status}`);
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || `API error: ${res.status} ${res.statusText}`);
   }
 
   return res.json();
@@ -47,14 +47,15 @@ export interface ProvidersResponse {
 export interface ChannelItem {
   channel_id: string;
   message_count: number;
-  last_active: string;
+  last_activity: string | null;
 }
 
 export interface MessageItem {
+  id?: string | number;
   role: string;
   content: string;
   provider: string | null;
-  created_at: string;
+  created_at: string | null;
 }
 
 export interface BotStatus {

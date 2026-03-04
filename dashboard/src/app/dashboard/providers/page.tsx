@@ -3,12 +3,12 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
-import { api } from "@/lib/api";
-import type { ProvidersResponse } from "@/lib/api";
-import { ProviderCard } from "@/components/providers/provider-card";
-import { FallbackChain } from "@/components/providers/fallback-chain";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { api } from "../../../lib/api";
+import type { ProvidersResponse } from "../../../lib/api";
+import { ProviderCard } from "../../../components/providers/provider-card";
+import { FallbackChain } from "../../../components/providers/fallback-chain";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
 import { toast } from "sonner";
 
 export default function ProvidersPage() {

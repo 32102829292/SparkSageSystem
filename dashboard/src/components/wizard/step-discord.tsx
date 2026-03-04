@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import { useWizardStore } from "@/stores/wizard-store";
-import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useWizardStore } from "../../stores/wizard-store";
+import { api } from "../../lib/api";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 
 export function StepDiscord() {
   const { data: session } = useSession();

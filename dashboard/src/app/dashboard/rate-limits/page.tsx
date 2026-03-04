@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+import { Progress } from "../../../components/ui/progress";
 import { Loader2, RefreshCw, Clock, Users, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 

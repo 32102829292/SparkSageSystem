@@ -1,9 +1,9 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/sidebar/app-sidebar";
-import { Separator } from "@/components/ui/separator";
+import { SidebarProvider, SidebarTrigger } from "../../components/ui/sidebar";
+import { AppSidebar } from "../../components/sidebar/app-sidebar";
+import { Separator } from "../../components/ui/separator";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 import { useEffect, useState } from "react";

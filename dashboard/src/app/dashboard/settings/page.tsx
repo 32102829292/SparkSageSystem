@@ -6,14 +6,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Save, RotateCcw, Eye, EyeOff, AlertCircle } from "lucide-react";
-import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import { api } from "../../../lib/api";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Textarea } from "../../../components/ui/textarea";
+import { Slider } from "../../../components/ui/slider";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Label } from "../../../components/ui/label";
+import { Separator } from "../../../components/ui/separator";
 import { toast } from "sonner";
 
 const settingsSchema = z.object({

@@ -77,3 +77,28 @@ def reset_limits():
     """Reset all rate limits (useful for testing)"""
     _user_windows.clear()
     _guild_windows.clear()
+
+
+def check_user_limit(guild_id: str, user_id: str) -> bool:
+    """Check if user is within rate limit. Returns True if allowed."""
+    now = time.time()
+    cutoff = now - WINDOW
+    key = (guild_id, user_id)
+    _user_windows[key] = [t for t in _user_windows[key] if t > cutoff]
+    return len(_user_windows[key]) < config.RATE_LIMIT_USER
+
+
+def check_guild_limit(guild_id: str) -> bool:
+    """Check if guild is within rate limit. Returns True if allowed."""
+    now = time.time()
+    cutoff = now - WINDOW
+    _guild_windows[guild_id] = [t for t in _guild_windows[guild_id] if t > cutoff]
+    return len(_guild_windows[guild_id]) < config.RATE_LIMIT_GUILD
+
+
+def record_usage(guild_id: str, user_id: str):
+    """Record a usage event for both user and guild."""
+    now = time.time()
+    key = (guild_id, user_id)
+    _user_windows[key].append(now)
+    _guild_windows[guild_id].append(now)

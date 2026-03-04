@@ -1,23 +1,22 @@
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
-from fastapi.staticfiles import StaticFiles
 import os
 import logging
 import time
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-# Lazy imports for faster cold starts
+# Lazy imports for faster cold starts and avoiding circular dependencies
 def get_routers():
     from api.routes import (
         auth, config, providers, bot, conversations, wizard,
         analytics, faqs, permissions, plugins, custom_commands,
-        digest, moderation, channel_prompts, channel_providers, rate_limits
+        digest, moderation, channel_prompts, channel_providers, rate_limits,
+        onboarding, cost_tracking
     )
     return [
         (auth.router, "/api/auth", "auth"),
@@ -35,15 +34,15 @@ def get_routers():
         (moderation.router, "/api/moderation", "moderation"),
         (channel_prompts.router, "/api/channel-prompts", "channel-prompts"),
         (channel_providers.router, "/api/channel-providers", "channel-providers"),
-        (router_rate_limits := rate_limits.router, "/api/rate-limits", "rate-limits"),
+        (rate_limits.router, "/api/rate-limits", "rate-limits"),
+        (onboarding.router, "/api/onboarding", "onboarding"),
+        (cost_tracking.router, "/api/cost-tracking", "cost-tracking"),
     ]
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting up SparkSage API")
     start_time = time.time()
-
     import db
     try:
         if hasattr(db, 'create_pool'):
@@ -55,10 +54,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize DB: {e}")
         raise
-
     logger.info(f"Startup completed in {time.time() - start_time:.2f}s")
     yield
-
     logger.info("Shutting down SparkSage API")
     try:
         if hasattr(app.state, 'db_pool') and app.state.db_pool:
@@ -68,21 +65,6 @@ async def lifespan(app: FastAPI):
             await db.close_db()
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
-
-
-# Allowed origins - Added the specific Vercel URL from your screenshot just in case
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://spark-sage-system.vercel.app",
-    "https://dashboard-zeta-two-34.vercel.app",
-    "https://dashboard-quy7g9s5c-gellimaegabuat-4869s-projects.vercel.app",
-    os.getenv("FRONTEND_URL", ""),
-]
-
-# Broadened Regex to catch all Vercel preview/branch deployments
-ALLOWED_ORIGIN_REGEX = r"https://.*\.vercel\.app"
-
 
 def create_app() -> FastAPI:
     is_production = os.getenv("ENVIRONMENT") == "production"
@@ -95,70 +77,62 @@ def create_app() -> FastAPI:
         redoc_url=None if is_production else "/redoc"
     )
 
-    # 1. Manual CORS Preflight Handler
-    # This ensures that even if other middlewares fail, OPTIONS requests get a 200 OK.
+    # --- MIDDLEWARE ORDER ---
+    # FastAPI executes middleware in reverse order of definition for "http" type.
+
+    # 1. Standard CORS Middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Open for debugging; change to specific domains later
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+
+    # 2. Process time header
+    @app.middleware("http")
+    async def add_process_time_header(request: Request, call_next):
+        start_time = time.time()
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers["X-Process-Time"] = str(process_time)
+        return response
+
+    # 3. Explicit Manual Preflight Handler (Crucial for Vercel -> Railway)
     @app.middleware("http")
     async def handle_options_preflight(request: Request, call_next):
         if request.method == "OPTIONS":
-            origin = request.headers.get("Origin")
+            origin = request.headers.get("Origin", "*")
             return Response(
                 status_code=200,
                 headers={
-                    "Access-Control-Allow-Origin": origin if origin else "*",
-                    "Access-Control-Allow-Methods": "*",
-                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
                     "Access-Control-Allow-Credentials": "true",
                 },
             )
         return await call_next(request)
 
-    # 2. Process time header middleware
-    @app.middleware("http")
-    async def add_process_time_header(request: Request, call_next):
-        start_time = time.time()
-        response = await call_next(request)
-        response.headers["X-Process-Time"] = str(time.time() - start_time)
-        return response
-
-    # 3. Standard CORS Middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[o for o in ALLOWED_ORIGINS if o],
-        allow_origin_regex=ALLOWED_ORIGIN_REGEX,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        max_age=3600,
-    )
-
-    # Mount static files if they exist
+    # Mount static files if directory exists
     if os.path.exists("static"):
         app.mount("/static", StaticFiles(directory="static"), name="static")
 
-    # Register routers
-    routers = get_routers()
-    for router, prefix, tag in routers:
+    # Register all routers
+    for router, prefix, tag in get_routers():
         app.include_router(router, prefix=prefix, tags=[tag])
 
-    # Health check — verifies DB connectivity
     @app.get("/api/health")
     async def health():
-        db_ok = False
-        try:
-            if hasattr(app.state, 'db_pool') and app.state.db_pool:
-                # Using a generic check since different DB drivers might be used
-                db_ok = True
-        except Exception as e:
-            logger.warning(f"Health check DB ping failed: {e}")
-
         return {
-            "status": "ok" if db_ok else "degraded",
-            "db": db_ok,
+            "status": "ok",
             "environment": os.getenv("ENVIRONMENT", "development"),
             "timestamp": time.time()
         }
 
     return app
 
-
+# --- THIS LINE IS THE MOST IMPORTANT ---
+# It must be at the bottom and NOT indented.
 app = create_app()

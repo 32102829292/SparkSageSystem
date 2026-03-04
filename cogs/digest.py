@@ -2,10 +2,10 @@
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-import db  # Swapped aiosqlite for your new db.py
-import os
+import db
 import providers
 from datetime import datetime, timedelta, timezone
+
 
 class Digest(commands.Cog):
     def __init__(self, bot):
@@ -17,7 +17,6 @@ class Digest(commands.Cog):
 
     @tasks.loop(hours=24)
     async def daily_digest(self):
-        # Using your new db functions instead of local get_setting
         enabled = await db.get_config("digest_enabled")
         if enabled != "true":
             return
@@ -30,10 +29,7 @@ class Digest(commands.Cog):
         if not channel:
             return
 
-        # Fetch messages from Supabase (PostgreSQL logic)
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        
-        # We access the pool directly for this specific time-based query
         pool = await db.get_db()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
@@ -45,11 +41,9 @@ class Digest(commands.Cog):
             await channel.send("📰 No activity in the past 24 hours to summarize.")
             return
 
-        # PostgreSQL records are accessed like dicts or by name
         conversation = "\n".join(
             f"{r['role'].upper()}: {r['content'][:200]}" for r in rows[:50]
         )
-        
         system = (
             "You are a helpful summarizer. Create a concise daily digest of AI assistant "
             "conversations. Use bullet points. Highlight key topics discussed."
@@ -57,9 +51,7 @@ class Digest(commands.Cog):
         user_msg = f"Summarize these conversations from the past 24 hours:\n\n{conversation}"
 
         try:
-            summary, provider_name = await providers.chat(
-                [{"role": "user", "content": user_msg}], system
-            )
+            summary, _ = providers.chat([{"role": "user", "content": user_msg}], system)
         except Exception as e:
             summary = f"Could not generate digest: {e}"
 
@@ -106,14 +98,13 @@ class Digest(commands.Cog):
     async def digest_status(self, interaction: discord.Interaction):
         enabled = await db.get_config("digest_enabled")
         channel_id = await db.get_config("digest_channel_id")
-        
         channel = self.bot.get_channel(int(channel_id)) if channel_id else None
         status = "✅ Enabled" if enabled == "true" else "❌ Disabled"
         ch = channel.mention if channel else "Not set"
-        
         await interaction.response.send_message(
             f"**Digest Status:** {status}\n**Channel:** {ch}", ephemeral=True
         )
+
 
 async def setup(bot):
     await bot.add_cog(Digest(bot))

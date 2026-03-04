@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { CheckCircle2, XCircle, Loader2, Star } from "lucide-react";
-import type { ProviderItem, TestProviderResult } from "@/lib/api";
-import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import type { ProviderItem, TestProviderResult } from "../../lib/api";
+import { api } from "../../lib/api";
+import { Button } from "../ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Badge } from "../ui/badge";
 
 interface ProviderCardProps {
   provider: ProviderItem;

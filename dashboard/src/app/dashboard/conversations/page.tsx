@@ -3,12 +3,12 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { Loader2, AlertCircle, RefreshCw, Search, MessageSquare, Trash2 } from "lucide-react";
-import { api } from "@/lib/api";
-import type { ChannelItem } from "@/lib/api";
-import { ChannelList } from "@/components/conversations/channel-list";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { api } from "../../../lib/api";
+import type { ChannelItem } from "../../../lib/api";
+import { ChannelList } from "../../../components/conversations/channel-list";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "../../../components/ui/dialog";
 import { toast } from "sonner";
 
 // Use the imported ChannelItem type directly

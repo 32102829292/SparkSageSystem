@@ -2,11 +2,10 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from api.deps import get_current_user
 import db as database
-import aiosqlite
-import os
+import logging
 
+logger = logging.getLogger("sparksage")
 router = APIRouter()
-DB_PATH = os.getenv("DATABASE_PATH", "sparksage.db")
 
 
 class ModerationConfig(BaseModel):
@@ -37,25 +36,28 @@ async def save_moderation(body: ModerationConfig, user=Depends(get_current_user)
 
 @router.get("/stats")
 async def get_moderation_stats(user=Depends(get_current_user)):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT COUNT(*) as total FROM analytics WHERE event_type='moderation'"
-        ) as cur:
-            total = (await cur.fetchone())["total"]
+    try:
+        pool = await database.get_db()
+        async with pool.acquire() as conn:
+            total_row = await conn.fetchrow(
+                "SELECT COUNT(*) as total FROM analytics WHERE event_type='moderation'"
+            )
+            total = total_row["total"] if total_row else 0
 
-        async with db.execute(
-            """SELECT command, COUNT(*) as count FROM analytics
-               WHERE event_type='moderation'
-               GROUP BY SUBSTR(command, 1, INSTR(command, ':') - 1)"""
-        ) as cur:
-            rows = await cur.fetchall()
+            rows = await conn.fetch(
+                """SELECT command, COUNT(*) as count FROM analytics
+                   WHERE event_type='moderation'
+                   GROUP BY command"""
+            )
 
-    by_severity = {"low": 0, "medium": 0, "high": 0}
-    for row in rows:
-        cmd = row["command"] or ""
-        for sev in by_severity:
-            if cmd.startswith(sev):
-                by_severity[sev] = row["count"]
+        by_severity = {"low": 0, "medium": 0, "high": 0}
+        for row in rows:
+            cmd = row["command"] or ""
+            for sev in by_severity:
+                if cmd.startswith(sev):
+                    by_severity[sev] += row["count"]
 
-    return {"total_flagged": total, "by_severity": by_severity}
+        return {"total_flagged": total, "by_severity": by_severity}
+    except Exception as e:
+        logger.error(f"Moderation stats failed: {e}")
+        return {"total_flagged": 0, "by_severity": {"low": 0, "medium": 0, "high": 0}}

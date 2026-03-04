@@ -4,12 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { CheckCircle2, Loader2, Pencil } from "lucide-react";
-import { useWizardStore } from "@/stores/wizard-store";
-import { api } from "@/lib/api";
-import { PROVIDER_INFO } from "@/types/provider";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useWizardStore } from "../../stores/wizard-store";
+import { api } from "../../lib/api";
+import { PROVIDER_INFO } from "../../types/provider";
+import { Button } from "../ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Badge } from "../ui/badge";
 
 export function StepReview() {
   const router = useRouter();

@@ -5,11 +5,11 @@ import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
-import type { MessageItem } from "@/lib/api";
-import { MessageList } from "@/components/conversations/message-list";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { api } from "../../../../lib/api";
+import type { MessageItem } from "../../../../lib/api";
+import { MessageList } from "../../../../components/conversations/message-list";
+import { Button } from "../../../../components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { toast } from "sonner";
 
 export default function ConversationDetailPage() {

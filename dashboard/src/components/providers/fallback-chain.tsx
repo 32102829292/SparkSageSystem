@@ -1,8 +1,8 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
-import type { ProviderItem } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
+import type { ProviderItem } from "../../lib/api";
+import { Badge } from "../ui/badge";
 
 interface FallbackChainProps {
   fallbackOrder: string[];

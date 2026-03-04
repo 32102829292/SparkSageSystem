@@ -1,16 +1,33 @@
-.env
+# Python stuff (if any)
 __pycache__/
 *.pyc
+*.egg-info/
+
+# Virtual environments
 .venv/
 venv/
-*.egg-info/
+
+# Build / dist files
 dist/
 build/
+
+# OS & editor junk
 .DS_Store
+
+# Databases
 *.db
 *.db-journal
 *.db-wal
+
+# Dashboard node and Next.js build
 dashboard/node_modules/
 dashboard/.next/
+
+# Local env files
 dashboard/.env.local
+.env
+
+# Vercel config
 .vercel
+node_modules/
+.next/

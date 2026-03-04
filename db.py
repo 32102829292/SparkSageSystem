@@ -142,11 +142,19 @@ async def close_db():
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 def _serialize_row(row: dict) -> dict:
-    """Convert all datetime values in a row dict to ISO 8601 strings."""
+    """Convert all datetime values in a row dict to ISO 8601 strings.
+    
+    Uses millisecond precision with 'Z' suffix so JavaScript's new Date()
+    can always parse it without returning Invalid Date.
+    
+    Before fix: 2026-03-04T21:59:01.123456+00:00  →  JS: Invalid Date
+    After fix:  2026-03-04T21:59:01.123Z          →  JS: ✅ valid
+    """
     result = {}
     for k, v in row.items():
         if isinstance(v, datetime):
-            result[k] = v.isoformat()
+            # Truncate microseconds to milliseconds, use Z suffix (universally JS-parseable)
+            result[k] = v.strftime("%Y-%m-%dT%H:%M:%S.") + f"{v.microsecond // 1000:03d}Z"
         else:
             result[k] = v
     return result

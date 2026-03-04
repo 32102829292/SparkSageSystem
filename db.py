@@ -139,6 +139,19 @@ async def close_db():
         _pool = None
 
 
+# ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+def _serialize_row(row: dict) -> dict:
+    """Convert all datetime values in a row dict to ISO 8601 strings."""
+    result = {}
+    for k, v in row.items():
+        if isinstance(v, datetime):
+            result[k] = v.isoformat()
+        else:
+            result[k] = v
+    return result
+
+
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
 async def get_config(key: str, default: str | None = None) -> str | None:
@@ -268,7 +281,7 @@ async def get_messages(channel_id: str, limit: int = 20) -> list[dict]:
                LIMIT $2""",
             channel_id, limit
         )
-        return [dict(r) for r in reversed(rows)]
+        return [_serialize_row(dict(r)) for r in reversed(rows)]
 
 
 async def clear_messages(channel_id: str):
@@ -288,7 +301,7 @@ async def list_channels() -> list[dict]:
                GROUP BY channel_id
                ORDER BY last_activity DESC"""
         )
-        return [dict(r) for r in rows]
+        return [_serialize_row(dict(r)) for r in rows]
 
 
 async def get_total_messages() -> int:

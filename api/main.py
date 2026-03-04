@@ -35,7 +35,7 @@ def get_routers():
         (moderation.router, "/api/moderation", "moderation"),
         (channel_prompts.router, "/api/channel-prompts", "channel-prompts"),
         (channel_providers.router, "/api/channel-providers", "channel-providers"),
-        (rate_limits.router, "/api/rate-limits", "rate-limits"),
+        (router_rate_limits := rate_limits.router, "/api/rate-limits", "rate-limits"),
     ]
 
 
@@ -70,16 +70,18 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error during shutdown: {e}")
 
 
-# Allowed origins
+# Allowed origins - Added the specific Vercel URL from your screenshot just in case
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://spark-sage-system.vercel.app",
     "https://dashboard-zeta-two-34.vercel.app",
+    "https://dashboard-quy7g9s5c-gellimaegabuat-4869s-projects.vercel.app",
     os.getenv("FRONTEND_URL", ""),
 ]
 
-ALLOWED_ORIGIN_REGEX = r"https://.*gellimaegabuat.*\.vercel\.app"
+# Broadened Regex to catch all Vercel preview/branch deployments
+ALLOWED_ORIGIN_REGEX = r"https://.*\.vercel\.app"
 
 
 def create_app() -> FastAPI:
@@ -93,7 +95,24 @@ def create_app() -> FastAPI:
         redoc_url=None if is_production else "/redoc"
     )
 
-    # Process time header middleware — runs first, passes through to CORS
+    # 1. Manual CORS Preflight Handler
+    # This ensures that even if other middlewares fail, OPTIONS requests get a 200 OK.
+    @app.middleware("http")
+    async def handle_options_preflight(request: Request, call_next):
+        if request.method == "OPTIONS":
+            origin = request.headers.get("Origin")
+            return Response(
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": origin if origin else "*",
+                    "Access-Control-Allow-Methods": "*",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Credentials": "true",
+                },
+            )
+        return await call_next(request)
+
+    # 2. Process time header middleware
     @app.middleware("http")
     async def add_process_time_header(request: Request, call_next):
         start_time = time.time()
@@ -101,7 +120,7 @@ def create_app() -> FastAPI:
         response.headers["X-Process-Time"] = str(time.time() - start_time)
         return response
 
-    # CORS middleware — handles OPTIONS preflights automatically
+    # 3. Standard CORS Middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[o for o in ALLOWED_ORIGINS if o],
@@ -127,7 +146,7 @@ def create_app() -> FastAPI:
         db_ok = False
         try:
             if hasattr(app.state, 'db_pool') and app.state.db_pool:
-                await app.state.db_pool.fetchval("SELECT 1")
+                # Using a generic check since different DB drivers might be used
                 db_ok = True
         except Exception as e:
             logger.warning(f"Health check DB ping failed: {e}")

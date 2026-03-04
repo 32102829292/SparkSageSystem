@@ -1,16 +1,16 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 import os
 import logging
-from typing import Dict
 import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 # Lazy imports for faster cold starts
 def get_routers():
@@ -38,90 +38,108 @@ def get_routers():
         (rate_limits.router, "/api/rate-limits", "rate-limits"),
     ]
 
-# Connection pool for database
-_db_pool = None
-
-async def get_db_pool():
-    global _db_pool
-    if _db_pool is None:
-        import db
-        _db_pool = await db.create_pool()  # Assuming you can create a pool
-    return _db_pool
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: initialize connection pool
     logger.info("Starting up SparkSage API")
     start_time = time.time()
-    
+
     import db
-    # Use connection pooling if your DB supports it
-    if hasattr(db, 'create_pool'):
-        app.state.db_pool = await db.create_pool()
-    else:
-        await db.init_db()
-        await db.sync_env_to_db()
-    
+    try:
+        if hasattr(db, 'create_pool'):
+            app.state.db_pool = await db.create_pool()
+        else:
+            await db.init_db()
+            await db.sync_env_to_db()
+            app.state.db_pool = None
+    except Exception as e:
+        logger.error(f"Failed to initialize DB: {e}")
+        raise
+
     logger.info(f"Startup completed in {time.time() - start_time:.2f}s")
     yield
-    
-    # Shutdown: close connections
+
     logger.info("Shutting down SparkSage API")
-    if hasattr(app.state, 'db_pool'):
-        await app.state.db_pool.close()
-    else:
-        await db.close_db()
+    try:
+        if hasattr(app.state, 'db_pool') and app.state.db_pool:
+            await app.state.db_pool.close()
+        else:
+            import db
+            await db.close_db()
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
+
+
+# Allowed origins
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://spark-sage-system.vercel.app",
+    "https://dashboard-zeta-two-34.vercel.app",
+    os.getenv("FRONTEND_URL", ""),
+]
+
+ALLOWED_ORIGIN_REGEX = r"https://.*gellimaegabuat.*\.vercel\.app"
+
 
 def create_app() -> FastAPI:
+    is_production = os.getenv("ENVIRONMENT") == "production"
+
     app = FastAPI(
         title="SparkSage API",
         version="1.0.0",
         lifespan=lifespan,
-        docs_url=None if os.getenv("VERCEL_ENV") == "production" else "/docs",
-        redoc_url=None if os.getenv("VERCEL_ENV") == "production" else "/redoc"
+        docs_url=None if is_production else "/docs",
+        redoc_url=None if is_production else "/redoc"
     )
 
-    # CORS for production
-    origins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://sparksagesystem.vercel.app",
-        os.getenv("FRONTEND_URL", "")
-    ]
-    
+    # Process time header middleware — runs first, passes through to CORS
+    @app.middleware("http")
+    async def add_process_time_header(request: Request, call_next):
+        start_time = time.time()
+        response = await call_next(request)
+        response.headers["X-Process-Time"] = str(time.time() - start_time)
+        return response
+
+    # CORS middleware — handles OPTIONS preflights automatically
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[origin for origin in origins if origin],
+        allow_origins=[o for o in ALLOWED_ORIGINS if o],
+        allow_origin_regex=ALLOWED_ORIGIN_REGEX,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        max_age=3600,
     )
 
     # Mount static files if they exist
     if os.path.exists("static"):
         app.mount("/static", StaticFiles(directory="static"), name="static")
 
-    # Lazy load routers
+    # Register routers
     routers = get_routers()
     for router, prefix, tag in routers:
         app.include_router(router, prefix=prefix, tags=[tag])
 
+    # Health check — verifies DB connectivity
     @app.get("/api/health")
     async def health():
+        db_ok = False
+        try:
+            if hasattr(app.state, 'db_pool') and app.state.db_pool:
+                await app.state.db_pool.fetchval("SELECT 1")
+                db_ok = True
+        except Exception as e:
+            logger.warning(f"Health check DB ping failed: {e}")
+
         return {
-            "status": "ok",
-            "environment": os.getenv("VERCEL_ENV", "development"),
+            "status": "ok" if db_ok else "degraded",
+            "db": db_ok,
+            "environment": os.getenv("ENVIRONMENT", "development"),
             "timestamp": time.time()
         }
 
-    @app.middleware("http")
-    async def add_process_time_header(request, call_next):
-        start_time = time.time()
-        response = await call_next(request)
-        process_time = time.time() - start_time
-        response.headers["X-Process-Time"] = str(process_time)
-        return response
-
     return app
+
 
 app = create_app()

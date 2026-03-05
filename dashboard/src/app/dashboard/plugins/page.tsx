@@ -298,7 +298,7 @@ function AddPluginModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-background border rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-hidden">
+      <div className="bg-background border rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-y-auto max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-2">

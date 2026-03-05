@@ -12,7 +12,7 @@ logger = logging.getLogger('sparksage')
 router = APIRouter()
 
 SIGNAL_FILE = "/tmp/plugin_reload_signal.json"
-PLUGINS_DIR = "plugins"
+PLUGINS_DIR = plugin_loader.PLUGINS_DIR
 
 
 def _write_signal(name: str, action: str):

@@ -12,13 +12,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "../../../components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../../components/ui/select";
 import { Label } from "../../../components/ui/label";
 import { Loader2, Plus, Pencil, Trash2, Cpu } from "lucide-react";
 import { toast } from "sonner";
@@ -38,7 +31,7 @@ interface GuildChannel {
 export default function ChannelProvidersPage() {
   const { data: session } = useSession();
   const token = (session as { accessToken?: string })?.accessToken;
-  
+
   const [overrides, setOverrides] = useState<ChannelOverride[]>([]);
   const [channels, setChannels] = useState<GuildChannel[]>([]);
   const [guilds, setGuilds] = useState<{ id: string; name: string }[]>([]);
@@ -48,14 +41,17 @@ export default function ChannelProvidersPage() {
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingOverride, setEditingOverride] = useState<ChannelOverride | null>(null);
-  const [formData, setFormData] = useState({
-    channel_id: "",
-    provider: ""
-  });
+  const [formData, setFormData] = useState({ channel_id: "", provider: "" });
 
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  // Fetch guilds on mount
+  // Bug 2 fix — helper to enrich overrides with channel names
+  const enrichOverrides = (data: ChannelOverride[], channelList: GuildChannel[]) =>
+    data.map(item => ({
+      ...item,
+      channel_name: channelList.find(c => c.id === item.channel_id)?.name || item.channel_id
+    }));
+
   useEffect(() => {
     if (!token) return;
     fetch(`${API}/api/bot/guilds`, {
@@ -64,46 +60,33 @@ export default function ChannelProvidersPage() {
       .then(res => res.json())
       .then(data => {
         setGuilds(data.guilds || []);
-        if (data.guilds?.length > 0) {
-          setSelectedGuild(data.guilds[0].id);
-        }
+        if (data.guilds?.length > 0) setSelectedGuild(data.guilds[0].id);
       })
       .catch(() => toast.error("Failed to load guilds"));
   }, [token, API]);
 
-  // Fetch available providers
   useEffect(() => {
     if (!token) return;
     fetch(`${API}/api/channel-providers/providers/list`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => {
-        setProviders(data || []);
-      })
+      .then(data => setProviders(data || []))
       .catch(() => toast.error("Failed to load providers"));
   }, [token, API]);
 
-  // Fetch channels when guild changes
   useEffect(() => {
     if (!token || !selectedGuild) return;
-    
     fetch(`${API}/api/bot/guilds/${selectedGuild}/channels`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => {
-        // Filter to text channels only
-        const textChannels = data.filter((c: GuildChannel) => c.type === 0);
-        setChannels(textChannels);
-      })
+      .then(data => setChannels(data.filter((c: GuildChannel) => c.type === 0)))
       .catch(() => toast.error("Failed to load channels"));
   }, [token, selectedGuild, API]);
 
-  // Fetch overrides when guild changes
   useEffect(() => {
     if (!token || !selectedGuild) return;
-    
     setLoading(true);
     fetch(`${API}/api/channel-providers/guild/${selectedGuild}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -113,13 +96,7 @@ export default function ChannelProvidersPage() {
         return res.json();
       })
       .then(data => {
-        const dataArray = Array.isArray(data) ? data : [];
-        // Merge with channel names
-        const enriched = dataArray.map((item: ChannelOverride) => ({
-          ...item,
-          channel_name: channels.find(c => c.id === item.channel_id)?.name || item.channel_id
-        }));
-        setOverrides(enriched);
+        setOverrides(enrichOverrides(Array.isArray(data) ? data : [], channels));
       })
       .catch(err => {
         console.error(err);
@@ -137,11 +114,19 @@ export default function ChannelProvidersPage() {
 
     setSaving(true);
     try {
+      // Bug 1 fix — send JSON body instead of query params
       const res = await fetch(
-        `${API}/api/channel-providers/channel/${formData.channel_id}?guild_id=${selectedGuild}&provider=${formData.provider}`, 
+        `${API}/api/channel-providers/channel/${formData.channel_id}`,
         {
           method: "PUT",
-          headers: { Authorization: `Bearer ${token}` }
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            guild_id: selectedGuild,
+            provider: formData.provider
+          })
         }
       );
 
@@ -154,17 +139,12 @@ export default function ChannelProvidersPage() {
       setDialogOpen(false);
       setFormData({ channel_id: "", provider: "" });
       setEditingOverride(null);
-      
-      // Refresh overrides
+
       const updated = await fetch(`${API}/api/channel-providers/guild/${selectedGuild}`, {
         headers: { Authorization: `Bearer ${token}` }
       }).then(r => r.json());
-      
-      const enriched = updated.map((item: ChannelOverride) => ({
-        ...item,
-        channel_name: channels.find(c => c.id === item.channel_id)?.name || item.channel_id
-      }));
-      setOverrides(enriched);
+
+      setOverrides(enrichOverrides(updated, channels));
     } catch (err: any) {
       toast.error(err.message || "Failed to save");
     } finally {
@@ -174,18 +154,15 @@ export default function ChannelProvidersPage() {
 
   const handleDelete = async (channelId: string) => {
     if (!token) return;
-
     try {
       const res = await fetch(`${API}/api/channel-providers/channel/${channelId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
-
       if (!res.ok) throw new Error("Failed to delete");
-
       toast.success("Provider override deleted");
       setOverrides(prev => prev.filter(o => o.channel_id !== channelId));
-    } catch (err) {
+    } catch {
       toast.error("Failed to delete");
     }
   };
@@ -193,10 +170,7 @@ export default function ChannelProvidersPage() {
   const openEditDialog = (override?: ChannelOverride) => {
     if (override) {
       setEditingOverride(override);
-      setFormData({
-        channel_id: override.channel_id,
-        provider: override.provider
-      });
+      setFormData({ channel_id: override.channel_id, provider: override.provider });
     } else {
       setEditingOverride(null);
       setFormData({ channel_id: "", provider: "" });
@@ -220,9 +194,7 @@ export default function ChannelProvidersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Channel Providers</h1>
-          <p className="text-sm text-muted-foreground">
-            Override AI providers for specific channels
-          </p>
+          <p className="text-sm text-muted-foreground">Override AI providers for specific channels</p>
         </div>
         <Button onClick={() => openEditDialog()} disabled={!selectedGuild}>
           <Plus className="h-4 w-4 mr-2" />
@@ -230,7 +202,6 @@ export default function ChannelProvidersPage() {
         </Button>
       </div>
 
-      {/* Guild selector */}
       <Card>
         <CardContent className="pt-6">
           <Label>Select Server</Label>
@@ -241,15 +212,12 @@ export default function ChannelProvidersPage() {
           >
             <option value="" disabled>Choose a server</option>
             {guilds.map((guild) => (
-              <option key={guild.id} value={guild.id}>
-                {guild.name}
-              </option>
+              <option key={guild.id} value={guild.id}>{guild.name}</option>
             ))}
           </select>
         </CardContent>
       </Card>
 
-      {/* Overrides list */}
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -259,11 +227,7 @@ export default function ChannelProvidersPage() {
           <CardContent className="py-12 text-center text-muted-foreground">
             <Cpu className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p>No provider overrides set for this server</p>
-            <Button 
-              variant="link" 
-              onClick={() => openEditDialog()}
-              className="mt-2"
-            >
+            <Button variant="link" onClick={() => openEditDialog()} className="mt-2">
               Add your first override
             </Button>
           </CardContent>
@@ -287,18 +251,10 @@ export default function ChannelProvidersPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEditDialog(override)}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => openEditDialog(override)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(override.channel_id)}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(override.channel_id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -309,13 +265,10 @@ export default function ChannelProvidersPage() {
         </div>
       )}
 
-      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {editingOverride ? "Edit Provider Override" : "Add Provider Override"}
-            </DialogTitle>
+            <DialogTitle>{editingOverride ? "Edit Provider Override" : "Add Provider Override"}</DialogTitle>
             <DialogDescription>
               Set a specific AI provider for this channel. This will override the global provider.
             </DialogDescription>
@@ -328,21 +281,15 @@ export default function ChannelProvidersPage() {
                 value={formData.channel_id}
                 onChange={(e) => setFormData(prev => ({ ...prev, channel_id: e.target.value }))}
                 disabled={!!editingOverride}
-                className={`w-full px-3 py-2 border rounded-md bg-background ${
-                  editingOverride ? "opacity-50 cursor-not-allowed" : ""
-                }`}
+                className={`w-full px-3 py-2 border rounded-md bg-background ${editingOverride ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <option value="" disabled>Choose a channel</option>
                 {channels.map((channel) => (
-                  <option key={channel.id} value={channel.id}>
-                    #{channel.name}
-                  </option>
+                  <option key={channel.id} value={channel.id}>#{channel.name}</option>
                 ))}
               </select>
               {editingOverride && (
-                <p className="text-xs text-muted-foreground">
-                  Channel cannot be changed when editing
-                </p>
+                <p className="text-xs text-muted-foreground">Channel cannot be changed when editing</p>
               )}
             </div>
 
@@ -364,9 +311,7 @@ export default function ChannelProvidersPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {editingOverride ? "Update" : "Save"}

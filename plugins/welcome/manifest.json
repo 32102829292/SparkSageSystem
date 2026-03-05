@@ -1,7 +1,0 @@
-{
-  "name": "Welcome Messages",
-  "version": "1.0.0",
-  "author": "Community",
-  "description": "Welcome new members",
-  "cog": "welcome.py"
-}

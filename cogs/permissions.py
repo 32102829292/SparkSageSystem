@@ -1,6 +1,4 @@
 """cogs/permissions.py — Role-based command permissions"""
-import traceback
-traceback.print_stack()
 import discord
 from discord import app_commands
 from discord.ext import commands

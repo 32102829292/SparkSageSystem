@@ -6,7 +6,6 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import providers
 import config
-from cogs.permissions import check_command_permission
 
 
 class Review(commands.Cog):
@@ -26,7 +25,7 @@ class Review(commands.Cog):
         app_commands.Choice(name="Style", value="style"),
     ])
     async def review(self, interaction: discord.Interaction, code: str, language: str = "", focus: str = "general"):
-        # ✅ Permission check
+        from cogs.permissions import check_command_permission
         if not await check_command_permission(interaction, "review"):
             await interaction.response.send_message(
                 "❌ You don't have permission to use this command.", ephemeral=True

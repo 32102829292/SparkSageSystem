@@ -7,7 +7,6 @@ import config
 import providers
 import db as database
 import logging
-from cogs.permissions import check_command_permission
 
 logger = logging.getLogger('sparksage')
 
@@ -54,7 +53,8 @@ class General(commands.Cog):
     @app_commands.command(name="ask", description="Ask SparkSage a question")
     @app_commands.describe(question="Your question for SparkSage")
     async def ask(self, interaction: discord.Interaction, question: str):
-        await interaction.response.defer()  # ✅ Defer first
+        from cogs.permissions import check_command_permission
+        await interaction.response.defer()
         if not await check_command_permission(interaction, "ask"):
             await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
             return
@@ -84,7 +84,8 @@ class General(commands.Cog):
 
     @app_commands.command(name="summarize", description="Summarize the recent conversation in this channel")
     async def summarize(self, interaction: discord.Interaction):
-        await interaction.response.defer()  # ✅ Defer first
+        from cogs.permissions import check_command_permission
+        await interaction.response.defer()
         if not await check_command_permission(interaction, "summarize"):
             await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
             return

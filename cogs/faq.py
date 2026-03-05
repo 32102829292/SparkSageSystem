@@ -3,7 +3,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import db as database
-from cogs.permissions import check_command_permission
 
 
 class FAQ(commands.Cog):
@@ -25,7 +24,7 @@ class FAQ(commands.Cog):
 
     @faq_group.command(name="list", description="List all FAQs")
     async def faq_list(self, interaction: discord.Interaction):
-        # ✅ Permission check
+        from cogs.permissions import check_command_permission
         if not await check_command_permission(interaction, "faq"):
             await interaction.response.send_message(
                 "❌ You don't have permission to use this command.", ephemeral=True
@@ -55,7 +54,7 @@ class FAQ(commands.Cog):
     @faq_group.command(name="get", description="Search FAQs for an answer")
     @app_commands.describe(question="Your question")
     async def faq_get(self, interaction: discord.Interaction, question: str):
-        # ✅ Permission check
+        from cogs.permissions import check_command_permission
         if not await check_command_permission(interaction, "faq"):
             await interaction.response.send_message(
                 "❌ You don't have permission to use this command.", ephemeral=True

@@ -23,6 +23,37 @@ async def ensure_table():
         await db.commit()
 
 
+async def check_command_permission(interaction: discord.Interaction, command_name: str) -> bool:
+    """Returns True if user is allowed to run the command, False if blocked."""
+    guild_id = str(interaction.guild_id)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT mode, role_id FROM command_permissions WHERE command_name=? AND guild_id=?",
+            (command_name, guild_id)
+        ) as cursor:
+            row = await cursor.fetchone()
+
+    # No restriction set = everyone can use it
+    if not row:
+        return True
+
+    mode = row["mode"]
+
+    if mode == "everyone":
+        return True
+
+    if mode == "admin_only":
+        return interaction.user.guild_permissions.manage_guild
+
+    if mode == "role" and row["role_id"]:
+        user_role_ids = [str(r.id) for r in interaction.user.roles]
+        return row["role_id"] in user_role_ids
+
+    return True
+
+
 class Permissions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot

@@ -3,6 +3,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import db as database
+from cogs.permissions import check_command_permission
 
 
 class FAQ(commands.Cog):
@@ -24,6 +25,13 @@ class FAQ(commands.Cog):
 
     @faq_group.command(name="list", description="List all FAQs")
     async def faq_list(self, interaction: discord.Interaction):
+        # ✅ Permission check
+        if not await check_command_permission(interaction, "faq"):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", ephemeral=True
+            )
+            return
+
         rows = await database.get_faqs()
         if not rows:
             await interaction.response.send_message("📭 No FAQs yet. Use `/faq add` to create one.", ephemeral=True)
@@ -47,6 +55,13 @@ class FAQ(commands.Cog):
     @faq_group.command(name="get", description="Search FAQs for an answer")
     @app_commands.describe(question="Your question")
     async def faq_get(self, interaction: discord.Interaction, question: str):
+        # ✅ Permission check
+        if not await check_command_permission(interaction, "faq"):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", ephemeral=True
+            )
+            return
+
         await interaction.response.defer(thinking=True)
         rows = await database.get_faqs()
         if not rows:
@@ -57,7 +72,6 @@ class FAQ(commands.Cog):
         best_score = 0
         for row in rows:
             score = sum(1 for word in row['question'].lower().split() if word in q_lower)
-            # Also check match_keywords
             if row.get('match_keywords'):
                 score += sum(1 for kw in row['match_keywords'].lower().split(',') if kw.strip() in q_lower)
             if score > best_score:

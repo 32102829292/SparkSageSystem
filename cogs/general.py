@@ -7,6 +7,7 @@ import config
 import providers
 import db as database
 import logging
+from cogs.permissions import check_command_permission
 
 logger = logging.getLogger('sparksage')
 
@@ -27,27 +28,18 @@ async def ask_ai(channel_id: int, user_name: str, message: str) -> tuple[str, st
     history = await get_history(channel_id)
     
     try:
-        # Check for channel-specific provider override
         channel_provider = await database.get_channel_provider(str(channel_id))
-        
-        # Check for channel-specific prompt override
         channel_prompt = await database.get_channel_prompt(str(channel_id))
         system_prompt = channel_prompt if channel_prompt else config.SYSTEM_PROMPT
         
-        # Use channel provider if available, otherwise use default fallback
         if channel_provider:
-            # Try to use the specific provider first
             try:
-                response = providers.call_provider(
-                    channel_provider, history, system_prompt
-                )
+                response = providers.call_provider(channel_provider, history, system_prompt)
                 provider_name = channel_provider
             except Exception as e:
                 logger.warning(f"Channel provider {channel_provider} failed: {e}")
-                # Fall back to normal chain
                 response, provider_name = providers.chat(history, system_prompt)
         else:
-            # Use normal fallback chain
             response, provider_name = providers.chat(history, system_prompt)
         
         await database.add_message(str(channel_id), "assistant", response, provider=provider_name)
@@ -65,6 +57,13 @@ class General(commands.Cog):
     @app_commands.command(name="ask", description="Ask SparkSage a question")
     @app_commands.describe(question="Your question for SparkSage")
     async def ask(self, interaction: discord.Interaction, question: str):
+        # ✅ Permission check
+        if not await check_command_permission(interaction, "ask"):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", ephemeral=True
+            )
+            return
+
         await interaction.response.defer()
         try:
             response, provider_name = await ask_ai(
@@ -92,6 +91,13 @@ class General(commands.Cog):
 
     @app_commands.command(name="summarize", description="Summarize the recent conversation in this channel")
     async def summarize(self, interaction: discord.Interaction):
+        # ✅ Permission check
+        if not await check_command_permission(interaction, "summarize"):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", ephemeral=True
+            )
+            return
+
         await interaction.response.defer()
         try:
             history = await get_history(interaction.channel_id)
@@ -113,33 +119,23 @@ class General(commands.Cog):
         primary = config.AI_PROVIDER
         provider_info = config.PROVIDERS.get(primary, {})
         available = providers.get_available_providers()
-        
-        # Check if this channel has a provider override
         channel_provider = await database.get_channel_provider(str(interaction.channel_id))
         
         embed = discord.Embed(title="🤖 AI Provider Status", color=discord.Color.blue())
-        
         if channel_provider:
-            # Show channel override
             override_info = config.PROVIDERS.get(channel_provider, {})
             embed.add_field(
                 name="📌 Channel Override",
                 value=f"**{override_info.get('name', channel_provider)}** (this channel only)",
                 inline=False
             )
-        
         embed.add_field(
             name="Current Provider",
             value=f"**{provider_info.get('name', primary)}**\nModel: `{provider_info.get('model', '?')}`",
             inline=False
         )
-        embed.add_field(
-            name="Provider Type",
-            value="🆓 Free" if provider_info.get('free') else "💰 Paid",
-            inline=True
-        )
+        embed.add_field(name="Provider Type", value="🆓 Free" if provider_info.get('free') else "💰 Paid", inline=True)
         embed.add_field(name="Fallback Chain", value=" → ".join(available), inline=True)
-        
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="ping", description="Check the bot's latency")

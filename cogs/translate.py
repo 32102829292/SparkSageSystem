@@ -4,6 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 import providers
 import config
+from cogs.permissions import check_command_permission
 
 
 class Translate(commands.Cog):
@@ -25,6 +26,13 @@ class Translate(commands.Cog):
         app_commands.Choice(name="Russian", value="Russian"),
     ])
     async def translate(self, interaction: discord.Interaction, text: str, target_language: str):
+        # ✅ Permission check
+        if not await check_command_permission(interaction, "translate"):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", ephemeral=True
+            )
+            return
+
         await interaction.response.defer(thinking=True)
         system = f"Translate the text to {target_language}. Return ONLY the translated text, nothing else."
         try:

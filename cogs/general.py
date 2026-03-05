@@ -31,8 +31,7 @@ async def ask_ai(channel_id: int, user_name: str, message: str) -> tuple[str, st
         system_prompt = channel_prompt if channel_prompt else config.SYSTEM_PROMPT
         if channel_provider:
             try:
-                response = providers.call_provider(channel_provider, history, system_prompt)
-                provider_name = channel_provider
+                response, provider_name = providers.call_provider(channel_provider, history, system_prompt)
             except Exception as e:
                 logger.warning(f"Channel provider {channel_provider} failed: {e}")
                 response, provider_name = providers.chat(history, system_prompt)

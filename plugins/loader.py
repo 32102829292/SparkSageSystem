@@ -46,7 +46,7 @@ def list_plugins() -> list[dict]:
             name = filename[:-3]
             plugins.append({
                 "name": name,
-                "enabled": state.get(name, False),
+                "enabled": state.get(name, True),  # ✅ enabled by default
                 "filename": filename,
             })
 
@@ -101,9 +101,9 @@ async def unload_plugin(bot: commands.Bot, name: str) -> bool:
 
 async def load_enabled_plugins(bot: commands.Bot):
     """Load all enabled plugins on bot startup."""
-    state = _load_state()
-    for name, enabled in state.items():
-        if enabled:
-            success = await load_plugin(bot, name)
+    plugins = list_plugins()  # ✅ scans folder first
+    for plugin in plugins:
+        if plugin["enabled"]:
+            success = await load_plugin(bot, plugin["name"])
             if not success:
-                logger.warning(f"Failed to auto-load plugin: {name}")
+                logger.warning(f"Failed to auto-load plugin: {plugin['name']}")

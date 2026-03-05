@@ -143,13 +143,15 @@ async def on_ready():
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
 
-    # Load enabled plugins (plugins.available.* — separate from cogs)
+    # ✅ 1. Load plugins FIRST
     try:
         from plugins.loader import load_enabled_plugins
         await load_enabled_plugins(bot)
+        logger.info("Plugins loaded successfully")
     except Exception as e:
         logger.warning(f"Failed to load plugins: {e}")
 
+    # ✅ 2. THEN sync commands (so plugin commands are included)
     try:
         synced = await bot.tree.sync()
         logger.info(f"Synced {len(synced)} slash command(s)")
@@ -172,7 +174,6 @@ async def on_ready():
         )
     )
 
-    # Start background tasks (only once — guard against on_ready firing multiple times)
     asyncio.create_task(_write_status_loop())
     asyncio.create_task(_watch_plugin_signals())
 

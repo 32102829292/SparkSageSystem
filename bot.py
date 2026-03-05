@@ -27,6 +27,7 @@ bot = commands.Bot(command_prefix=config.BOT_PREFIX, intents=intents)
 
 STATUS_FILE = "/tmp/bot_status.json"
 SIGNAL_FILE = "/tmp/plugin_reload_signal.json"
+ACTIVITY_FILE = "/tmp/bot_activity.json"
 
 
 def get_bot_status() -> dict:
@@ -42,6 +43,25 @@ def get_bot_status() -> dict:
     except Exception as e:
         logger.error(f"Error reading status file: {e}")
         return {"online": False, "username": None, "latency_ms": None, "guild_count": 0, "guilds": []}
+
+
+def log_activity(command: str, user: str, guild: str) -> None:
+    """Append a command usage entry to the activity file. Called from cogs."""
+    try:
+        entries = []
+        if os.path.exists(ACTIVITY_FILE):
+            with open(ACTIVITY_FILE) as f:
+                entries = json.load(f)
+        entries.append({
+            "command": command,
+            "user": user,
+            "guild": guild,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        })
+        with open(ACTIVITY_FILE, "w") as f:
+            json.dump(entries[-50:], f)  # keep last 50 entries
+    except Exception as e:
+        logger.warning(f"Failed to log activity: {e}")
 
 
 async def _write_status_loop():
@@ -76,7 +96,7 @@ async def _write_status_loop():
 
 
 async def _watch_plugin_signals():
-    """Poll for plugin load/unload signals written by the API process."""
+    """Poll for plugin load/unload/sync signals written by the API process."""
     last_ts = 0
 
     while True:
@@ -90,24 +110,32 @@ async def _watch_plugin_signals():
             if ts <= last_ts:
                 continue
             last_ts = ts
-            name = signal["plugin"]
-            action = signal["action"]
-            from plugins.loader import load_plugin, unload_plugin
-            if action == "load":
+            action = signal.get("action")
+
+            if action == "sync_commands":
+                synced = await bot.tree.sync()
+                logger.info(f"Re-synced {len(synced)} slash commands via API signal")
+
+            elif action == "load":
+                name = signal["plugin"]
+                from plugins.loader import load_plugin
                 success = await load_plugin(bot, name)
                 if success:
                     await bot.tree.sync()
                     logger.info(f"Hot-loaded plugin '{name}' and re-synced commands")
+
             elif action == "unload":
+                name = signal["plugin"]
+                from plugins.loader import unload_plugin
                 success = await unload_plugin(bot, name)
                 if success:
                     await bot.tree.sync()
                     logger.info(f"Hot-unloaded plugin '{name}' and re-synced commands")
+
         except Exception as e:
             logger.warning(f"Plugin signal watcher error: {e}")
 
 
-# --- setup_hook: runs ONCE before bot connects, safe for cog loading ---
 async def setup_hook():
     cogs = [
         "cogs.general",
@@ -143,7 +171,6 @@ async def on_ready():
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
 
-    # ✅ 1. Load plugins FIRST
     try:
         from plugins.loader import load_enabled_plugins
         await load_enabled_plugins(bot)
@@ -151,7 +178,6 @@ async def on_ready():
     except Exception as e:
         logger.warning(f"Failed to load plugins: {e}")
 
-    # ✅ 2. THEN sync commands (so plugin commands are included)
     try:
         synced = await bot.tree.sync()
         logger.info(f"Synced {len(synced)} slash command(s)")

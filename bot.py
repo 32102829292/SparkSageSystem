@@ -107,17 +107,8 @@ async def _watch_plugin_signals():
             logger.warning(f"Plugin signal watcher error: {e}")
 
 
-@bot.event
-async def on_ready():
-    logger.info("Bot is starting up...")
-
-    try:
-        await database.init_db()
-        await database.sync_env_to_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
-
+# --- setup_hook: runs ONCE before bot connects, safe for cog loading ---
+async def setup_hook():
     cogs = [
         "cogs.general",
         "cogs.faq",
@@ -133,26 +124,26 @@ async def on_ready():
         "cogs.channel_providers",
         "cogs.rate_limits",
     ]
-
     for cog in cogs:
         try:
-            if cog in bot.extensions:
-                continue
             await bot.load_extension(cog)
             logger.info(f"Loaded cog: {cog}")
         except Exception as e:
             logger.warning(f"Failed to load cog {cog}: {e}")
 
-    available = providers.get_available_providers()
-    primary = config.AI_PROVIDER
-    provider_info = config.PROVIDERS.get(primary, {})
+bot.setup_hook = setup_hook
 
-    logger.info(f"SparkSage is online as {bot.user}")
-    logger.info(f"Connected to {len(bot.guilds)} guild(s)")
-    logger.info(f"Primary provider: {provider_info.get('name', primary)} ({provider_info.get('model', '?')})")
-    logger.info(f"Fallback chain: {' -> '.join(available)}")
 
-    # Load enabled plugins before syncing
+@bot.event
+async def on_ready():
+    try:
+        await database.init_db()
+        await database.sync_env_to_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+
+    # Load enabled plugins (plugins.available.* — separate from cogs)
     try:
         from plugins.loader import load_enabled_plugins
         await load_enabled_plugins(bot)
@@ -165,6 +156,15 @@ async def on_ready():
     except Exception as e:
         logger.error(f"Failed to sync commands: {e}")
 
+    available = providers.get_available_providers()
+    primary = config.AI_PROVIDER
+    provider_info = config.PROVIDERS.get(primary, {})
+
+    logger.info(f"SparkSage is online as {bot.user}")
+    logger.info(f"Connected to {len(bot.guilds)} guild(s)")
+    logger.info(f"Primary provider: {provider_info.get('name', primary)} ({provider_info.get('model', '?')})")
+    logger.info(f"Fallback chain: {' -> '.join(available)}")
+
     await bot.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.watching,
@@ -172,7 +172,7 @@ async def on_ready():
         )
     )
 
-    # Start background tasks (only once)
+    # Start background tasks (only once — guard against on_ready firing multiple times)
     asyncio.create_task(_write_status_loop())
     asyncio.create_task(_watch_plugin_signals())
 

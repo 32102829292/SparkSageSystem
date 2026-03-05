@@ -58,11 +58,27 @@ export interface MessageItem {
   created_at: string | null;
 }
 
+export interface Guild {
+  id: string;
+  name: string;
+  member_count: number;
+  icon_url?: string | null;
+}
+
+// Matches what DashboardOverview expects
 export interface BotStatus {
   online: boolean;
-  latency: number | null;
-  guilds: number;
-  uptime: number | null;
+  username: string;
+  latency_ms: number;
+  guild_count: number;
+  guilds: Guild[];
+}
+
+export interface ActivityEntry {
+  command: string;
+  user: string;
+  guild: string;
+  timestamp: string;
 }
 
 export interface TestProviderResult {
@@ -115,6 +131,18 @@ export const api = {
   getBotStatus: (token: string) =>
     apiFetch<BotStatus>("/api/bot/status", { token }),
 
+  syncCommands: (token: string) =>
+    apiFetch<{ status: string }>("/api/bot/sync-commands", {
+      method: "POST",
+      token,
+    }),
+
+  restartBot: (token: string) =>
+    apiFetch<{ status: string }>("/api/bot/restart", {
+      method: "POST",
+      token,
+    }),
+
   // Conversations
   getConversations: (token: string) =>
     apiFetch<{ channels: ChannelItem[] }>("/api/conversations", { token }),
@@ -130,6 +158,16 @@ export const api = {
       method: "DELETE",
       token,
     }),
+
+  clearAllHistory: (token: string) =>
+    apiFetch<{ status: string }>("/api/conversations", {
+      method: "DELETE",
+      token,
+    }),
+
+  // Activity
+  getRecentActivity: (token: string) =>
+    apiFetch<ActivityEntry[]>("/api/bot/activity", { token }),
 
   // Wizard
   getWizardStatus: (token: string) =>

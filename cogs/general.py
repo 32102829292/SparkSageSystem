@@ -26,12 +26,10 @@ async def get_history(channel_id: int) -> list[dict]:
 async def ask_ai(channel_id: int, user_name: str, message: str) -> tuple[str, str]:
     await database.add_message(str(channel_id), "user", f"{user_name}: {message}")
     history = await get_history(channel_id)
-    
     try:
         channel_provider = await database.get_channel_provider(str(channel_id))
         channel_prompt = await database.get_channel_prompt(str(channel_id))
         system_prompt = channel_prompt if channel_prompt else config.SYSTEM_PROMPT
-        
         if channel_provider:
             try:
                 response = providers.call_provider(channel_provider, history, system_prompt)
@@ -41,7 +39,6 @@ async def ask_ai(channel_id: int, user_name: str, message: str) -> tuple[str, st
                 response, provider_name = providers.chat(history, system_prompt)
         else:
             response, provider_name = providers.chat(history, system_prompt)
-        
         await database.add_message(str(channel_id), "assistant", response, provider=provider_name)
         return response, provider_name
     except RuntimeError as e:
@@ -57,14 +54,10 @@ class General(commands.Cog):
     @app_commands.command(name="ask", description="Ask SparkSage a question")
     @app_commands.describe(question="Your question for SparkSage")
     async def ask(self, interaction: discord.Interaction, question: str):
-        # ✅ Permission check
+        await interaction.response.defer()  # ✅ Defer first
         if not await check_command_permission(interaction, "ask"):
-            await interaction.response.send_message(
-                "❌ You don't have permission to use this command.", ephemeral=True
-            )
+            await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
             return
-
-        await interaction.response.defer()
         try:
             response, provider_name = await ask_ai(
                 interaction.channel_id, interaction.user.display_name, question
@@ -91,14 +84,10 @@ class General(commands.Cog):
 
     @app_commands.command(name="summarize", description="Summarize the recent conversation in this channel")
     async def summarize(self, interaction: discord.Interaction):
-        # ✅ Permission check
+        await interaction.response.defer()  # ✅ Defer first
         if not await check_command_permission(interaction, "summarize"):
-            await interaction.response.send_message(
-                "❌ You don't have permission to use this command.", ephemeral=True
-            )
+            await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
             return
-
-        await interaction.response.defer()
         try:
             history = await get_history(interaction.channel_id)
             if not history:
@@ -106,9 +95,7 @@ class General(commands.Cog):
                 return
             conversation_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in history])
             summary_prompt = f"Please summarize the key points from this conversation in a concise bullet-point format:\n\n{conversation_text}"
-            response, provider_name = await ask_ai(
-                interaction.channel_id, "System", summary_prompt
-            )
+            response, provider_name = await ask_ai(interaction.channel_id, "System", summary_prompt)
             await interaction.followup.send(f"**📊 Conversation Summary:**\n{response}")
         except Exception as e:
             logger.error(f"Error in summarize command: {e}")
@@ -120,7 +107,6 @@ class General(commands.Cog):
         provider_info = config.PROVIDERS.get(primary, {})
         available = providers.get_available_providers()
         channel_provider = await database.get_channel_provider(str(interaction.channel_id))
-        
         embed = discord.Embed(title="🤖 AI Provider Status", color=discord.Color.blue())
         if channel_provider:
             override_info = config.PROVIDERS.get(channel_provider, {})

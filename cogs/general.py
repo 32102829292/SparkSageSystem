@@ -7,6 +7,7 @@ import config
 import providers
 import db as database
 import logging
+from bot import log_activity
 
 logger = logging.getLogger('sparksage')
 
@@ -58,6 +59,7 @@ class General(commands.Cog):
             await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
             return
         try:
+            log_activity("ask", interaction.user.display_name, interaction.guild.name if interaction.guild else "DM")
             response, provider_name = await ask_ai(
                 interaction.channel_id, interaction.user.display_name, question
             )
@@ -75,6 +77,7 @@ class General(commands.Cog):
     @app_commands.command(name="clear", description="Clear SparkSage's conversation memory for this channel")
     async def clear(self, interaction: discord.Interaction):
         try:
+            log_activity("clear", interaction.user.display_name, interaction.guild.name if interaction.guild else "DM")
             await database.clear_messages(str(interaction.channel_id))
             await interaction.response.send_message("✅ Conversation history cleared!")
         except Exception as e:
@@ -89,6 +92,7 @@ class General(commands.Cog):
             await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
             return
         try:
+            log_activity("summarize", interaction.user.display_name, interaction.guild.name if interaction.guild else "DM")
             history = await get_history(interaction.channel_id)
             if not history:
                 await interaction.followup.send("No conversation history to summarize.")
@@ -103,6 +107,7 @@ class General(commands.Cog):
 
     @app_commands.command(name="provider", description="Show which AI provider SparkSage is currently using")
     async def provider(self, interaction: discord.Interaction):
+        log_activity("provider", interaction.user.display_name, interaction.guild.name if interaction.guild else "DM")
         primary = config.AI_PROVIDER
         provider_info = config.PROVIDERS.get(primary, {})
         available = providers.get_available_providers()
@@ -126,6 +131,7 @@ class General(commands.Cog):
 
     @app_commands.command(name="ping", description="Check the bot's latency")
     async def ping(self, interaction: discord.Interaction):
+        log_activity("ping", interaction.user.display_name, interaction.guild.name if interaction.guild else "DM")
         latency = round(self.bot.latency * 1000)
         embed = discord.Embed(
             title="🏓 Pong!",
@@ -136,6 +142,7 @@ class General(commands.Cog):
 
     @app_commands.command(name="stats", description="Show bot statistics")
     async def stats(self, interaction: discord.Interaction):
+        log_activity("stats", interaction.user.display_name, interaction.guild.name if interaction.guild else "DM")
         embed = discord.Embed(title="📊 SparkSage Statistics", color=discord.Color.purple())
         embed.add_field(name="Servers", value=str(len(self.bot.guilds)), inline=True)
         embed.add_field(name="Latency", value=f"{round(self.bot.latency * 1000)}ms", inline=True)
